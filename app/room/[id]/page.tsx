@@ -245,7 +245,13 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
       console.warn("Media devices API not available. Please ensure you are using HTTPS or localhost.");
       return;
     }
-    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+    navigator.mediaDevices.getUserMedia({ 
+      audio: { 
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      } 
+    }).then((stream) => {
       audioStreamRef.current = stream;
       startSegment(stream);
     }).catch((err) => console.error("Mic access failed:", err));
