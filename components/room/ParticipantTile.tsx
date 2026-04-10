@@ -1,5 +1,5 @@
 import { VideoTrack } from "@livekit/components-react";
-import type { TrackReferenceOrPlaceholder } from "@livekit/components-core";
+import type { TrackReferenceOrPlaceholder, TrackReference } from "@livekit/components-core";
 import type { Participant } from "livekit-client";
 import { Track } from "livekit-client";
 
@@ -40,8 +40,8 @@ export default function ParticipantTile({ participant, isSelf, displayName, isHo
       transition: "box-shadow 0.3s, border-color 0.3s",
     }}>
       {/* Video or avatar */}
-      {showVideo && camTrack ? (
-        <VideoTrack trackRef={camTrack} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      {showVideo && camTrack && camTrack.publication ? (
+        <VideoTrack trackRef={camTrack as TrackReference} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           <div style={{ width: 64, height: 64, borderRadius: "50%", background: `${color}22`, border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: "1.1rem", color }}>
