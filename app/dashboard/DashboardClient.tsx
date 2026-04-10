@@ -51,9 +51,19 @@ export default function DashboardClient({ user, profile, meetings }: Props) {
     ).join("");
   }
 
-  function startMeeting() {
+  async function startMeeting() {
     setStarting(true);
-    router.push(`/room/${genRoomId()}`);
+    const newRoomId = genRoomId();
+    
+    // Rigorously claim the room ownership in the database BEFORE navigating
+    // so participants who load the link first can never hijack the host status.
+    await supabase.from("meetings").insert({
+      room_id: newRoomId,
+      host_id: user.id,
+      started_at: new Date().toISOString(),
+    });
+
+    router.push(`/room/${newRoomId}`);
   }
 
   function joinMeeting(e: React.SyntheticEvent) {

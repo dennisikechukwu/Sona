@@ -157,15 +157,7 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
     }
   }, []);
 
-  // ── Register meeting in Supabase when room is joined ───────────────────────
-  useEffect(() => {
-    if (!localParticipant.identity) return;
-    const supabase = createClient();
-    supabase.from("meetings").upsert(
-      { room_id: roomId, host_id: localParticipant.identity, started_at: new Date().toISOString() },
-      { onConflict: "room_id" }
-    ).then(() => {});
-  }, [roomId, localParticipant.identity]);
+  // Note: Meeting row creation is securely handled strictly server-side by the /api/livekit/token endpoint.
 
   // ── Data channel: receive transcript lines + room_ended signal ─────────────
   useEffect(() => {

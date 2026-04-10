@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   const profileName = (profileRes.data as { display_name: string | null } | null)?.display_name;
   const name = profileName || user.email?.split("@")[0] || "Guest";
 
-  const adminSupa = await createServiceClient();
+  const adminSupa = createServiceClient();
   const meetingRes = await adminSupa
     .from("meetings")
     .select("host_id")

@@ -34,30 +34,38 @@ export async function POST(request: Request) {
     }
 
     // ── 1. Save / update meeting record ──────────────────────────────────────
-    const { data: meeting, error: meetingError } = await supabase
+    const adminClient = createServiceClient();
+    
+    const { data: meetingCheck } = await adminClient
       .from("meetings")
-      .upsert(
-        {
-          room_id: roomId,
-          host_id: user.id,
-          ended_at: new Date().toISOString(),
-          ...(participantCount != null ? { participant_count: participantCount } : {}),
-        },
-        { onConflict: "room_id" }
-      )
+      .select("host_id")
+      .eq("room_id", roomId)
+      .single();
+      
+    if (meetingCheck?.host_id !== user.id) {
+      return Response.json({ error: "Only the host can officially end meetings" }, { status: 403 });
+    }
+
+    const { data: meeting, error: meetingError } = await adminClient
+      .from("meetings")
+      .update({
+        ended_at: new Date().toISOString(),
+        ...(participantCount != null ? { participant_count: participantCount } : {}),
+      })
+      .eq("room_id", roomId)
       .select()
       .single();
 
     if (meetingError || !meeting) {
-      console.error("Meeting upsert error:", meetingError);
+      console.error("Meeting update error:", meetingError);
       return Response.json({ error: "Failed to save meeting" }, { status: 500 });
     }
 
     // ── 2. Save transcript ────────────────────────────────────────────────────
     // Delete any previous transcript for this meeting first (idempotent)
     if (lines?.length) {
-      await supabase.from("transcripts").delete().eq("meeting_id", meeting.id);
-      const { error: transcriptError } = await supabase
+      await adminClient.from("transcripts").delete().eq("meeting_id", meeting.id);
+      const { error: transcriptError } = await adminClient
         .from("transcripts")
         .insert({ meeting_id: meeting.id, lines });
       if (transcriptError) {
@@ -123,8 +131,8 @@ export async function POST(request: Request) {
 
     // ── 4. Save summary ───────────────────────────────────────────────────────
     // Delete previous summaries for this meeting (idempotent)
-    await supabase.from("summaries").delete().eq("meeting_id", meeting.id);
-    const { error: summaryError } = await supabase.from("summaries").insert({
+    await adminClient.from("summaries").delete().eq("meeting_id", meeting.id);
+    const { error: summaryError } = await adminClient.from("summaries").insert({
       meeting_id: meeting.id,
       summary_text: summary || null,
       key_topics: keyTopics,
@@ -132,9 +140,9 @@ export async function POST(request: Request) {
     if (summaryError) console.error("Summary save error:", summaryError);
 
     // ── 5. Save action items ──────────────────────────────────────────────────
-    await supabase.from("action_items").delete().eq("meeting_id", meeting.id);
+    await adminClient.from("action_items").delete().eq("meeting_id", meeting.id);
     if (actionItems.length > 0) {
-      const { error: actionError } = await supabase.from("action_items").insert(
+      const { error: actionError } = await adminClient.from("action_items").insert(
         actionItems.map((a) => ({
           meeting_id: meeting.id,
           text: a.text,
@@ -147,9 +155,7 @@ export async function POST(request: Request) {
 
     // ── 6. Send summary email ─────────────────────────────────────────────────
     try {
-      const adminClient = await createServiceClient();
-      
-      const { data: profile } = await supabase
+      const { data: profile } = await adminClient
         .from("profiles")
         .select("display_name")
         .eq("id", user.id)
