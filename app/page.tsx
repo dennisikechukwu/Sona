@@ -50,18 +50,43 @@ export default function LandingPage() {
   };
 
   const startMeeting = async () => {
+    // Creating rooms strictly requires authentication.
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    window.location.href = user ? `/room/${genRoom()}` : "/auth";
+    if (user) {
+      // Pre-claim room so it can't be hijacked
+      const newRoomId = genRoom();
+      await supabase.from("meetings").insert({
+        room_id: newRoomId,
+        host_id: user.id,
+        started_at: new Date().toISOString(),
+      });
+      window.location.href = `/room/${newRoomId}`;
+    } else {
+      window.location.href = "/auth";
+    }
   };
 
   const joinRoom = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!roomCode.trim()) return;
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    const id = roomCode.trim().toLowerCase();
-    window.location.href = user ? `/room/${id}` : `/auth?next=/room/${id}`;
+    
+    let roomId = roomCode.trim().toLowerCase();
+    
+    // In V2, Guests can join natively. The `/room/[id]` page's PreJoinLobby 
+    // will intercept unauthenticated users and safely issue them a Guest token.
+    try {
+      const url = new URL(roomId);
+      const parts = url.pathname.split("/").filter(Boolean);
+      const roomIndex = parts.indexOf("room");
+      if (roomIndex !== -1 && parts[roomIndex + 1]) {
+        roomId = parts[roomIndex + 1];
+      }
+    } catch {
+      // not a full URL, use raw code
+    }
+
+    window.location.href = `/room/${roomId}`;
   };
 
   return (

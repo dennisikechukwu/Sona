@@ -31,7 +31,14 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  const protectedPrefixes = ["/dashboard", "/room", "/profile"];
+  // Intercept rogue Supabase OAuth redirects that dumped the code on the wrong page
+  if (request.nextUrl.searchParams.has("code") && pathname !== "/auth/callback") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    return NextResponse.redirect(url);
+  }
+
+  const protectedPrefixes = ["/dashboard", "/profile"];
   const isProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
 
   if (isProtected && !user) {

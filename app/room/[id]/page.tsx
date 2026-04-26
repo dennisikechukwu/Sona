@@ -19,14 +19,17 @@ import type { TranscriptLine } from "@/lib/types";
 import RoomTopBar from "@/components/room/RoomTopBar";
 import RoomToolbar from "@/components/room/RoomToolbar";
 import ParticipantGrid from "@/components/room/ParticipantGrid";
+import PresenterBoard from "@/components/room/PresenterBoard";
 import AISidebar from "@/components/room/AISidebar";
 import EndCallModal from "@/components/room/EndCallModal";
 import PostCallScreen from "@/components/room/PostCallScreen";
+import PreJoinLobby from "@/components/room/PreJoinLobby";
+import ReactionToolbar from "@/components/room/ReactionToolbar";
+import FloatingReactions from "@/components/room/FloatingReactions";
 import SonaLogo from "@/components/shared/SonaLogo";
 import ResponsiveStyles from "@/components/shared/ResponsiveStyles";
 
 type Tab = "transcript" | "summary" | "tasks";
-interface TaskItem { text: string; owner: string; due: string; done: boolean; }
 
 // ─── Token fetcher ────────────────────────────────────────────────────────────
 
@@ -35,12 +38,21 @@ function useToken(roomId: string) {
   const [displayName, setDisplayName] = useState("You");
   const [isHost, setIsHost] = useState(false);
   const [error, setError] = useState("");
+  const [needsGuestName, setNeedsGuestName] = useState(false);
 
-  useEffect(() => {
-    fetch(`/api/livekit/token?room=${encodeURIComponent(roomId)}`)
-      .then((r) => r.json())
-      .then((data) => {
+  const fetchToken = useCallback((guestName?: string) => {
+    let url = `/api/livekit/token?room=${encodeURIComponent(roomId)}`;
+    if (guestName) url += `&guestName=${encodeURIComponent(guestName)}`;
+
+    fetch(url)
+      .then((r) => r.json().then(data => ({ status: r.status, data })))
+      .then(({ status, data }) => {
+        if (status === 401 && data.error.includes("join with a name")) {
+          setNeedsGuestName(true);
+          return;
+        }
         if (data.error) { setError(data.error); return; }
+        setNeedsGuestName(false);
         setToken(data.token);
         setDisplayName(data.name);
         setIsHost(data.isHost ?? false);
@@ -48,16 +60,23 @@ function useToken(roomId: string) {
       .catch(() => setError("Failed to connect"));
   }, [roomId]);
 
-  return { token, displayName, isHost, error };
+  useEffect(() => {
+    fetchToken();
+  }, [fetchToken]);
+
+  return { token, displayName, isHost, error, needsGuestName, fetchToken };
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function RoomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: roomId } = use(params);
-  const { token, displayName, isHost, error } = useToken(roomId);
+  const { token, displayName, isHost, error, needsGuestName, fetchToken } = useToken(roomId);
   const router = useRouter();
 
+  const [joined, setJoined] = useState(false);
+  const [initialMic, setInitialMic] = useState(true);
+  const [initialCam, setInitialCam] = useState(true);
   const [mediaSupported, setMediaSupported] = useState(false);
 
   useEffect(() => {
@@ -76,7 +95,8 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
     );
   }
 
-  if (!token) {
+  // Still fetching initial silent token to see if we are auth'd or not
+  if (!token && !needsGuestName) {
     return (
       <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-base)", flexDirection: "column", gap: "0.75rem" }}>
         <SonaLogo size={36} />
@@ -85,6 +105,25 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
     );
   }
 
+  // Pre join lobby
+  if (!joined) {
+    return (
+      <PreJoinLobby
+        isHost={isHost}
+        defaultName={needsGuestName ? "" : displayName}
+        onJoin={(name, mic, cam) => {
+          setInitialMic(mic);
+          setInitialCam(cam);
+          if (needsGuestName) fetchToken(name);
+          setJoined(true);
+        }}
+      />
+    );
+  }
+
+  // Wait for token if guest just submitted name
+  if (!token) return null;
+
   return (
     <>
       <ResponsiveStyles />
@@ -92,8 +131,8 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
         token={token}
         serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
         connect
-        audio={mediaSupported}
-        video={mediaSupported}
+        audio={initialMic && mediaSupported}
+        video={initialCam && mediaSupported}
       >
         <RoomContent roomId={roomId} displayName={displayName} isHost={isHost} />
       </LiveKitRoom>
@@ -116,14 +155,15 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
   const [time, setTime] = useState(0);
   const [liveLines, setLiveLines] = useState<TranscriptLine[]>([]);
   const [typing, setTyping] = useState(false);
-  const [summary, setSummary] = useState("");
-  const [keyTopics, setKeyTopics] = useState<string[]>([]);
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
 
   // End-call states
   const [showEndModal, setShowEndModal] = useState(false);  // host popup
-  const [ending, setEnding] = useState(false);              // processing
   const [callEnded, setCallEnded] = useState(false);        // post-call screen
+
+  // Board state
+  const [boardOpen, setBoardOpen] = useState(false);
+  const [boardOpenedByMe, setBoardOpenedByMe] = useState(false);
+  const [presenterName, setPresenterName] = useState("");
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
@@ -172,11 +212,31 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
           stopAudio();
           room.disconnect();
         }
-      } catch {}
+        // Board open/close signals
+        if (msg.type === "board_open") {
+          setBoardOpen(true);
+          setBoardOpenedByMe(false); // someone else opened it
+          setPresenterName(msg.presenterName || "");
+        }
+        if (msg.type === "board_close") {
+          setBoardOpen(false);
+          setBoardOpenedByMe(false);
+          setPresenterName("");
+        }
+      } catch { }
     }
     room.on(RoomEvent.DataReceived, handleData);
     return () => { room.off(RoomEvent.DataReceived, handleData); };
   }, [room]);
+
+  const isMicrophoneEnabledRef = useRef(isMicrophoneEnabled);
+  useEffect(() => {
+    isMicrophoneEnabledRef.current = isMicrophoneEnabled;
+    // Hard-mute the raw stream just to be doubly safe
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getAudioTracks().forEach(t => t.enabled = isMicrophoneEnabled);
+    }
+  }, [isMicrophoneEnabled]);
 
   // ── Stop audio helper ──────────────────────────────────────────────────────
   function stopAudio() {
@@ -187,6 +247,7 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
 
   // ── Send blob to Groq ──────────────────────────────────────────────────────
   const sendToGroq = useCallback(async (blob: Blob) => {
+    if (!isMicrophoneEnabledRef.current) return; // Prevent Whisper hallucinating on silence
     if (blob.size < 2000) return;
     const fd = new FormData();
     fd.append("audio", blob, "audio.webm");
@@ -209,7 +270,7 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
           room.localParticipant.publishData(encoded, { reliable: true });
         }
       }
-    } catch {}
+    } catch { }
     setTyping(false);
   }, [displayName, room]);
 
@@ -237,12 +298,12 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
       console.warn("Media devices API not available. Please ensure you are using HTTPS or localhost.");
       return;
     }
-    navigator.mediaDevices.getUserMedia({ 
-      audio: { 
+    navigator.mediaDevices.getUserMedia({
+      audio: {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true
-      } 
+      }
     }).then((stream) => {
       audioStreamRef.current = stream;
       startSegment(stream);
@@ -261,10 +322,9 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
     }
   }, [liveLines, typing]);
 
-  // ── End for ALL (host) ─────────────────────────────────────────────────────
-  async function endForAll() {
+  // ── End for ALL (host) — INSTANT (QStash architecture) ──────────────────────
+  function endForAll() {
     setShowEndModal(false);
-    setEnding(true);
     stopAudio();
 
     // Signal all participants to disconnect
@@ -273,29 +333,23 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
       room.localParticipant.publishData(signal, { reliable: true });
     }
 
-    // Save + generate summary
+    // Fire-and-forget: save transcript + publish QStash job (~200ms server-side)
+    // The AI summary is generated in the background — no blocking!
     if (liveLines.length > 0) {
-      try {
-        const res = await fetch("/api/meeting/end", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            roomId,
-            lines: liveLines,
-            durationSeconds: timeRef.current,
-            participantCount: remoteParticipants.length + 1,
-            participantIds: [localParticipant.identity, ...remoteParticipants.map((p) => p.identity)].filter(Boolean),
-          }),
-        });
-        const data = await res.json();
-        if (data.summary) setSummary(data.summary);
-        if (data.keyTopics) setKeyTopics(data.keyTopics);
-        if (data.actionItems) setTasks(data.actionItems);
-      } catch {}
+      fetch("/api/meeting/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId,
+          lines: liveLines,
+          durationSeconds: timeRef.current,
+          participantCount: remoteParticipants.length + 1,
+          participantIds: [localParticipant.identity, ...remoteParticipants.map((p) => p.identity)].filter(Boolean),
+        }),
+      }).catch(() => {}); // Fire-and-forget — don't block the UI
     }
 
-    // Show post-call summary screen instead of immediately redirecting
-    setEnding(false);
+    // Immediately show post-call screen — no waiting!
     callEndedRef.current = true;
     setCallEnded(true);
     room.disconnect();
@@ -325,11 +379,9 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
   if (callEnded) {
     return (
       <PostCallScreen
+        roomId={roomId}
         totalSeconds={timeRef.current}
         liveLines={liveLines}
-        summary={summary}
-        keyTopics={keyTopics}
-        tasks={tasks}
         onDashboard={() => router.push("/dashboard")}
         onProfile={() => router.push("/profile")}
       />
@@ -343,9 +395,9 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
 
       {/* End-call confirmation modal (host only) */}
       {showEndModal && (
-        <EndCallModal 
-          onEndForAll={endForAll} 
-          onEndForMe={endForMe} 
+        <EndCallModal
+          onEndForAll={endForAll}
+          onEndForMe={endForMe}
           onClose={() => setShowEndModal(false)}
         />
       )}
@@ -363,26 +415,62 @@ function RoomContent({ roomId, displayName, isHost }: { roomId: string; displayN
       {/* Main */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
 
-        {/* Video area */}
+        {/* Video area / Board */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
 
-          <ParticipantGrid
-            localParticipant={localParticipant}
-            remoteParticipants={remoteParticipants}
-            displayName={displayName}
-            isHost={isHost}
-            isCameraEnabled={isCameraEnabled}
-            tracks={tracks}
-          />
+          {boardOpen ? (
+            <PresenterBoard
+              isPresenter={boardOpenedByMe}
+              presenterName={boardOpenedByMe ? displayName : presenterName}
+              room={room}
+              onClose={() => {
+                setBoardOpen(false);
+                setBoardOpenedByMe(false);
+                setPresenterName("");
+                if (room.state === "connected") {
+                  const msg = new TextEncoder().encode(JSON.stringify({ type: "board_close" }));
+                  room.localParticipant.publishData(msg, { reliable: true });
+                }
+              }}
+            />
+          ) : (
+            <ParticipantGrid
+              localParticipant={localParticipant}
+              remoteParticipants={remoteParticipants}
+              displayName={displayName}
+              isHost={isHost}
+              isCameraEnabled={isCameraEnabled}
+              tracks={tracks}
+            />
+          )}
+
+          <FloatingReactions />
 
           <RoomToolbar
             isMicrophoneEnabled={isMicrophoneEnabled}
             isCameraEnabled={isCameraEnabled}
             isHost={isHost}
-            ending={ending}
+            boardOpen={boardOpen}
             localParticipant={localParticipant}
-            onEndCall={() => !ending && setShowEndModal(true)}
+            onEndCall={() => setShowEndModal(true)}
             onLeave={leaveCall}
+            onToggleBoard={() => {
+              setBoardOpen((v) => {
+                const next = !v;
+                setBoardOpenedByMe(next); // I'm the one toggling
+                if (next) setPresenterName(displayName);
+                else setPresenterName("");
+                // Broadcast to all participants so they switch views too
+                if (room.state === "connected") {
+                  const msg = new TextEncoder().encode(JSON.stringify({
+                    type: next ? "board_open" : "board_close",
+                    presenterName: displayName,
+                  }));
+                  room.localParticipant.publishData(msg, { reliable: true });
+                }
+                return next;
+              });
+            }}
           />
         </div>
 

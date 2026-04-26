@@ -1,3 +1,5 @@
+import { Video } from "lucide-react";
+
 interface Props {
   starting: boolean;
   startMeeting: () => void;
@@ -45,7 +47,11 @@ export default function StartMeetingCard({ starting, startMeeting }: Props) {
             <span style={{ width: 12, height: 12, border: "2px solid rgba(0,0,0,0.2)", borderTopColor: "var(--text-muted)", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
             Starting…
           </>
-        ) : "▶ Start new meeting"}
+        ) : (
+          <>
+            <Video size={16} /> Start new meeting
+          </>
+        )}
       </button>
     </div>
   );

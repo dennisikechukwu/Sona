@@ -29,7 +29,7 @@ export default function LandingFooter() {
 
         {/* Tech credits */}
         <span style={{ fontFamily: "var(--font-sans)", fontSize: "0.78rem", color: "var(--text-muted)" }}>
-          Built with Next.js · Groq · LiveKit
+          &copy; {new Date().getFullYear()} Sona. All rights reserved.
         </span>
       </div>
     </footer>

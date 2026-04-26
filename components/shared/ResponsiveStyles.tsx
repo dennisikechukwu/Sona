@@ -25,7 +25,7 @@ export default function ResponsiveStyles() {
       .room-participant-grid { flex:1; display:grid; gap:8px; padding:12px; overflow:hidden; }
 
       /* Room Toolbar */
-      .room-toolbar-inner { height:72px; display:flex; align-items:center; justify-content:center; gap:10px; border-top:1px solid var(--border-subtle); background:var(--bg-surface); padding: 0 1.5rem; flex-shrink:0; overflow-x:auto; }
+      .room-toolbar-inner { height:72px; display:flex; align-items:center; justify-content:center; gap:10px; border-top:1px solid var(--border-subtle); background:var(--bg-surface); padding: 0 1.5rem; flex-shrink:0; overflow:visible; }
 
       /* Room AI Sidebar */
       .room-ai-sidebar { width:320px; border-left:1px solid var(--border-subtle); background:var(--bg-surface); display:flex; flex-direction:column; flex-shrink:0; animation:fadeIn 0.25s ease; position:relative; z-index:10; }
@@ -78,6 +78,11 @@ export default function ResponsiveStyles() {
         .room-topbar-inner { padding:0 0.8rem !important; }
         .room-topbar-title { display: none; } /* Hide 'Sona' mark */
         .room-param-labels { display: none; } /* Hide 'LIVE' text, show dot */
+        
+        .prejoin-lobby-grid {
+          grid-template-columns: 1fr !important;
+          gap: 1.5rem !important;
+        }
 
         /* Force single column for video feeds on mobile */
         .room-participant-grid { grid-template-columns: 1fr !important; grid-template-rows: auto !important; }
@@ -104,6 +109,28 @@ export default function ResponsiveStyles() {
         .profile-main { padding: 1.25rem 1rem; }
         .room-topbar-center { gap: 6px; }
         .room-toolbar-inner { padding: 0 0.5rem; gap: 6px; }
+      }
+
+      /* ── Board Tool Palette responsive ────────────────────────── */
+      @media (max-width: 767px) {
+        .board-tool-palette {
+          bottom: 80px !important;
+          padding: 6px 10px !important;
+          gap: 4px !important;
+          border-radius: 12px !important;
+          max-width: calc(100vw - 24px);
+          overflow-x: auto;
+        }
+        .board-canvas-wrap {
+          touch-action: none;
+        }
+      }
+      @media (max-width: 479px) {
+        .board-tool-palette {
+          bottom: 76px !important;
+          padding: 5px 8px !important;
+          gap: 3px !important;
+        }
       }
     `}</style>
   );

@@ -4,6 +4,7 @@ import SonaLogo from "@/components/shared/SonaLogo";
 interface Props {
   displayName: string;
   initials: string;
+  avatarUrl?: string | null;
   signingOut: boolean;
   signOut: () => void;
 }
@@ -12,7 +13,7 @@ const IconMenu = () => (<svg width="22" height="22" viewBox="0 0 24 24" fill="no
 const IconX = () => (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
 
 /* Top navigation bar for the dashboard page */
-export default function DashboardNav({ displayName, initials, signingOut, signOut }: Props) {
+export default function DashboardNav({ displayName, initials, avatarUrl, signingOut, signOut }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
@@ -48,8 +49,10 @@ export default function DashboardNav({ displayName, initials, signingOut, signOu
             onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--border-default)")}
             onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border-subtle)")}
           >
-            <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--accent-dim)", border: "1px solid rgba(34,197,94,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: "0.65rem", color: "var(--accent)" }}>
-              {initials}
+            <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--accent-dim)", border: "1px solid rgba(34,197,94,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: "0.65rem", color: "var(--accent)", overflow: "hidden" }}>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : initials}
             </div>
             <span style={{ fontFamily: "var(--font-sans)", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
               {displayName}

@@ -23,6 +23,8 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+import { Mic, ArrowRight } from "lucide-react";
+
 /* Past meetings list — links each row to /profile?meeting=<id> */
 export default function MeetingList({ meetings }: Props) {
   return (
@@ -33,7 +35,9 @@ export default function MeetingList({ meetings }: Props) {
 
       {meetings.length === 0 ? (
         <div style={{ background: "var(--bg-surface)", border: "1px dashed var(--border-default)", borderRadius: "var(--radius-lg)", padding: "3rem", textAlign: "center" }}>
-          <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>🎙️</div>
+          <div style={{ marginBottom: "0.75rem", display: "flex", justifyContent: "center" }}>
+            <Mic size={32} color="var(--text-muted)" />
+          </div>
           <div style={{ fontFamily: "var(--font-sans)", fontSize: "0.875rem", color: "var(--text-muted)" }}>
             Your meeting history will appear here after your first call.
           </div>
@@ -50,8 +54,8 @@ export default function MeetingList({ meetings }: Props) {
             >
               {/* Left: icon + details */}
               <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
-                <div style={{ width: 38, height: 38, borderRadius: "var(--radius-md)", background: "var(--accent-dim)", border: "1px solid rgba(34,197,94,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", flexShrink: 0 }}>
-                  🎙️
+                <div style={{ width: 38, height: 38, borderRadius: "var(--radius-md)", background: "var(--accent-dim)", border: "1px solid rgba(34,197,94,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Mic size={18} color="var(--accent)" />
                 </div>
                 <div>
                   <div style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: "0.875rem", color: "var(--text-primary)" }}>
@@ -68,7 +72,9 @@ export default function MeetingList({ meetings }: Props) {
                 <span style={{ fontFamily: "var(--font-sans)", fontSize: "0.75rem", color: m.ended_at ? "var(--text-secondary)" : "var(--accent)", fontWeight: m.ended_at ? 400 : 600 }}>
                   {formatDuration(m.started_at, m.ended_at)}
                 </span>
-                <span style={{ fontFamily: "var(--font-sans)", fontSize: "0.72rem", color: "var(--accent)" }}>View →</span>
+                <span style={{ fontFamily: "var(--font-sans)", fontSize: "0.72rem", color: "var(--accent)", display: "flex", alignItems: "center", gap: 4 }}>
+                  View <ArrowRight size={14} />
+                </span>
               </div>
             </a>
           ))}

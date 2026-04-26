@@ -63,7 +63,7 @@ export default function AppPreview({ txRef, txIdx }: Props) {
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", animation: "blink 1.4s infinite" }} />
                 <span style={{ fontFamily: "var(--font-sans)", fontSize: "0.67rem", color: "var(--text-muted)" }}>Sona AI · Live</span>
               </div>
-              <span style={{ fontFamily: "var(--font-sans)", fontSize: "0.67rem", color: "var(--text-muted)" }}>Groq powered</span>
+              <span style={{ fontFamily: "var(--font-sans)", fontSize: "0.67rem", color: "var(--text-muted)" }}>End-to-End Encrypted</span>
             </div>
           </div>
         </div>

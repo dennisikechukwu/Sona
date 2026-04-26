@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { TranscriptLine } from "@/lib/types";
+import { Mic, Camera } from "lucide-react";
 import ResponsiveStyles from "@/components/shared/ResponsiveStyles";
 
 const IconMenu = () => (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>);
@@ -33,12 +34,87 @@ export default function ProfileClient({ user, profile, meetings }: Props) {
   const supabase = createClient();
 
   const [displayName, setDisplayName] = useState(profile?.display_name || user.email.split("@")[0]);
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [activeTab, setActiveTab] = useState<"transcript" | "summary" | "tasks">("transcript");
 
+  // Refs for scrolling to a specific meeting
+  const meetingRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const searchParams = useSearchParams();
+
+  // Auto-select and scroll to a meeting from ?meeting= query param
+  useEffect(() => {
+    const meetingId = searchParams.get("meeting");
+    if (meetingId) {
+      const found = meetings.find((m) => m.id === meetingId);
+      if (found) {
+        setSelectedMeeting(found);
+        // Wait for DOM to render the selected meeting, then scroll
+        setTimeout(() => {
+          const el = meetingRefs.current[meetingId];
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 300);
+      }
+    }
+  }, [searchParams, meetings]);
+
   const initials = displayName.slice(0, 2).toUpperCase();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingAvatar(true);
+
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      await new Promise((res) => (img.onload = res));
+
+      const size = 256;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      
+      const minDim = Math.min(img.width, img.height);
+      const sx = (img.width - minDim) / 2;
+      const sy = (img.height - minDim) / 2;
+
+      ctx?.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+
+      const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/webp", 0.8));
+      if (!blob) throw new Error("Could not process image");
+
+      const fileName = `${user.id}-${Date.now()}.webp`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, blob, { contentType: "image/webp", upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(fileName);
+      setAvatarUrl(publicUrl);
+
+      const { error: updateError } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", user.id);
+      if (updateError) throw updateError;
+
+      router.refresh();
+    } catch (err) {
+      console.error("Avatar upload failed:", err);
+      alert("Failed to upload image.");
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
 
   async function saveProfile(e: React.SyntheticEvent) {
     e.preventDefault();
@@ -163,11 +239,40 @@ export default function ProfileClient({ user, profile, meetings }: Props) {
             {/* Left: Profile card */}
             <div className="profile-left-panel" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-xl)", padding: "1.75rem", position: "sticky", top: 76 }}>
               <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-                <div style={{ width: 72, height: 72, borderRadius: "50%", background: "var(--accent-dim)", border: "2px solid rgba(34,197,94,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 0.875rem", fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: "1.5rem", color: "var(--accent)" }}>
-                {initials}
+                <div style={{ position: "relative", width: 72, height: 72, margin: "0 auto 0.875rem" }}>
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    onMouseEnter={(e) => { const overlay = e.currentTarget.querySelector('.avatar-overlay') as HTMLElement; if (overlay) overlay.style.opacity = '1'; }}
+                    onMouseLeave={(e) => { const overlay = e.currentTarget.querySelector('.avatar-overlay') as HTMLElement; if (overlay) overlay.style.opacity = '0'; }}
+                    style={{ width: "100%", height: "100%", borderRadius: "50%", background: "var(--accent-dim)", border: "2px solid rgba(34,197,94,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: "1.5rem", color: "var(--accent)", cursor: "pointer", position: "relative", overflow: "hidden" }}
+                  >
+                    {uploadingAvatar ? (
+                      <span style={{ width: 24, height: 24, border: "2px solid rgba(34,197,94,0.2)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
+                    ) : avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : initials}
+                    
+                    {!uploadingAvatar && (
+                      <div className="avatar-overlay" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.2s" }}>
+                        <span style={{ fontSize: "0.6rem", color: "#fff", fontFamily: "var(--font-sans)", fontWeight: 600 }}>UPLOAD</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Camera Badge */}
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ position: "absolute", bottom: 0, left: 0, width: 22, height: 22, borderRadius: "50%", background: "var(--bg-elevated)", border: "1px solid var(--border-default)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", cursor: "pointer", boxShadow: "0 2px 4px rgba(0,0,0,0.2)", zIndex: 2, transition: "color 0.2s" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+                    title="Upload profile picture"
+                  >
+                    <Camera size={11} strokeWidth={2.5} />
+                  </div>
+                </div>
+                <input type="file" ref={fileInputRef} accept="image/*" style={{ display: "none" }} onChange={handleAvatarUpload} />
+                <div style={{ fontFamily: "var(--font-sans)", fontSize: "0.78rem", color: "var(--text-muted)" }}>{user.email}</div>
               </div>
-              <div style={{ fontFamily: "var(--font-sans)", fontSize: "0.78rem", color: "var(--text-muted)" }}>{user.email}</div>
-            </div>
 
             <form onSubmit={saveProfile}>
               <label style={{ display: "block", fontFamily: "var(--font-sans)", fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: "0.4rem", fontWeight: 500 }}>
@@ -210,13 +315,15 @@ export default function ProfileClient({ user, profile, meetings }: Props) {
 
             {meetings.length === 0 ? (
               <div style={{ background: "var(--bg-surface)", border: "1px dashed var(--border-default)", borderRadius: "var(--radius-lg)", padding: "3rem", textAlign: "center" }}>
-                <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>🎙️</div>
+                <div style={{ marginBottom: "0.75rem", display: "flex", justifyContent: "center" }}>
+                  <Mic size={32} color="var(--text-muted)" />
+                </div>
                 <div style={{ fontFamily: "var(--font-sans)", fontSize: "0.875rem", color: "var(--text-muted)" }}>No meetings yet. Start your first one from the dashboard.</div>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
                 {meetings.map((m) => (
-                  <div key={m.id}>
+                  <div key={m.id} ref={(el) => { meetingRefs.current[m.id] = el; }}>
                     <button
                       onClick={() => setSelectedMeeting(selectedMeeting?.id === m.id ? null : m)}
                       style={{ width: "100%", textAlign: "left", background: selectedMeeting?.id === m.id ? "var(--bg-elevated)" : "var(--bg-surface)", border: `1px solid ${selectedMeeting?.id === m.id ? "rgba(34,197,94,0.3)" : "var(--border-subtle)"}`, borderRadius: "var(--radius-lg)", padding: "1.1rem 1.25rem", cursor: "pointer", transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap" }}
@@ -224,7 +331,9 @@ export default function ProfileClient({ user, profile, meetings }: Props) {
                       onMouseLeave={(e) => { if (selectedMeeting?.id !== m.id) { (e.currentTarget as HTMLElement).style.borderColor = "var(--border-subtle)"; (e.currentTarget as HTMLElement).style.background = "var(--bg-surface)"; } }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
-                        <div style={{ width: 38, height: 38, borderRadius: "var(--radius-md)", background: "var(--accent-dim)", border: "1px solid rgba(34,197,94,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", flexShrink: 0 }}>🎙️</div>
+                        <div style={{ width: 38, height: 38, borderRadius: "var(--radius-md)", background: "var(--accent-dim)", border: "1px solid rgba(34,197,94,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <Mic size={18} color="var(--accent)" />
+                        </div>
                         <div>
                           <div style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: "0.875rem", color: "var(--text-primary)" }}>
                             {m.title || `Meeting · ${m.room_id}`}

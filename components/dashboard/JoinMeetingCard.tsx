@@ -1,3 +1,5 @@
+import { ArrowRight } from "lucide-react";
+
 interface Props {
   joinLink: string;
   setJoinLink: (v: string) => void;
@@ -71,7 +73,11 @@ export default function JoinMeetingCard({ joinLink, setJoinLink, joining, joinEr
               <span style={{ width: 12, height: 12, border: "2px solid var(--border-default)", borderTopColor: "var(--text-secondary)", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
               Joining…
             </>
-          ) : "→ Join meeting"}
+          ) : (
+            <>
+              Join meeting <ArrowRight size={16} />
+            </>
+          )}
         </button>
       </form>
     </div>
