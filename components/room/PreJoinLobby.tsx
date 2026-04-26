@@ -105,12 +105,13 @@ export default function PreJoinLobby({ onJoin, defaultName = "", isHost = false 
       padding: "1.5rem",
       fontFamily: "var(--font-sans)",
     }}>
-      <div className="prejoin-lobby-grid" style={{ width: "100%", maxWidth: "920px", display: "grid", gridTemplateColumns: "1fr 360px", gap: "2.5rem", alignItems: "center" }}>
+      <div className="prejoin-lobby-grid flex flex-col lg:grid lg:grid-cols-[1fr_360px]" style={{ width: "100%", maxWidth: "920px", gap: "2.5rem", alignItems: "center" }}>
         
         {/* Left: Video Preview Window */}
         <div style={{
           background: "var(--bg-surface)",
           aspectRatio: "16/9",
+          width: "100%",
           borderRadius: "var(--radius-xl)",
           overflow: "hidden",
           position: "relative",
@@ -165,7 +166,7 @@ export default function PreJoinLobby({ onJoin, defaultName = "", isHost = false 
         </div>
 
         {/* Right: Join Form */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", width: "100%", maxWidth: "480px" }}>
           <div>
             <SonaLogo size={32} />
             <h1 style={{ fontSize: "1.5rem", color: "var(--text-primary)", margin: "1rem 0 0.25rem 0", fontFamily: "var(--font-serif)" }}>
