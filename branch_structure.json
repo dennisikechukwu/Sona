@@ -1,0 +1,21 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "SONA-V2",
+    "main",
+    "origin",
+    "update"
+  ],
+  "parent": {
+    "SONA-V2": "main",
+    "main": null,
+    "origin": "main",
+    "update": "main"
+  },
+  "order": [
+    "main",
+    "SONA-V2",
+    "origin",
+    "update"
+  ]
+}
