@@ -79,10 +79,7 @@ export default function ResponsiveStyles() {
         .room-topbar-title { display: none; } /* Hide 'Sona' mark */
         .room-param-labels { display: none; } /* Hide 'LIVE' text, show dot */
         
-        .prejoin-lobby-grid {
-          grid-template-columns: 1fr !important;
-          gap: 1.5rem !important;
-        }
+
 
         /* Force single column for video feeds on mobile */
         .room-participant-grid { grid-template-columns: 1fr !important; grid-template-rows: auto !important; }
