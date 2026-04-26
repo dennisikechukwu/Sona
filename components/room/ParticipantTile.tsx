@@ -28,6 +28,16 @@ export default function ParticipantTile({ participant, isSelf, displayName, isHo
     ? isCameraEnabled && !!camTrack
     : !!camTrack && !camTrack.publication?.isMuted;
 
+  let avatarUrl = "";
+  if (participant.metadata) {
+    try {
+      const meta = JSON.parse(participant.metadata);
+      if (meta.avatar_url) avatarUrl = meta.avatar_url;
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
   return (
     <div style={{
       background: "var(--bg-elevated)",
@@ -44,8 +54,10 @@ export default function ParticipantTile({ participant, isSelf, displayName, isHo
         <VideoTrack trackRef={camTrack as TrackReference} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: `${color}22`, border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: "1.1rem", color }}>
-            {initials}
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: `${color}22`, border: `2px solid ${color}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-serif)", fontWeight: 700, fontSize: "1.1rem", color, overflow: "hidden" }}>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : initials}
           </div>
           <span style={{ fontFamily: "var(--font-sans)", fontSize: "0.7rem", color: "var(--text-muted)" }}>Camera off</span>
         </div>

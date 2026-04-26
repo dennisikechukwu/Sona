@@ -33,7 +33,7 @@ export default function HowItWorks() {
             </div>
 
             {/* Step image (hidden on mobile via CSS) */}
-            <img src={`/images/step-${i + 1}.jpg`} alt={s.title} className="step-img" />
+            <img src={`/images/step-${i + 1}.png`} alt={s.title} className="step-img" />
           </div>
         ))}
       </div>

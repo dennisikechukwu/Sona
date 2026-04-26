@@ -10,22 +10,35 @@ export async function GET(request: Request) {
     return Response.json({ error: "room is required" }, { status: 400 });
   }
 
+  const guestName = searchParams.get("guestName");
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  let identity = "";
+  let name = "";
+  let avatarUrl = "";
+
+  if (user) {
+    // Authenticated Flow
+    const profileRes = await supabase
+      .from("profiles")
+      .select("display_name, avatar_url")
+      .eq("id", user.id)
+      .single();
+
+    identity = user.id;
+    const profileData = profileRes.data as { display_name: string | null, avatar_url: string | null } | null;
+    const profileName = profileData?.display_name;
+    name = profileName || user.email?.split("@")[0] || "Host";
+    avatarUrl = profileData?.avatar_url || "";
+  } else if (guestName) {
+    // Guest Flow
+    identity = `guest_${Math.random().toString(36).substring(2, 9)}`;
+    name = guestName.slice(0, 32); // Max 32 chars
+  } else {
+    return Response.json({ error: "Unauthorized. Please join with a name." }, { status: 401 });
   }
-
-  const profileRes = await supabase
-    .from("profiles")
-    .select("display_name")
-    .eq("id", user.id)
-    .single();
-
-  const identity = user.id;
-  const profileName = (profileRes.data as { display_name: string | null } | null)?.display_name;
-  const name = profileName || user.email?.split("@")[0] || "Guest";
 
   const adminSupa = createServiceClient();
   const meetingRes = await adminSupa
@@ -39,23 +52,24 @@ export async function GET(request: Request) {
 
   if (meetingRes.data) {
     // If the meeting already exists, evaluate if they are the host.
-    isHost = meetingRes.data.host_id === user.id;
-  } else {
-    // If no meeting exists yet, the very first person to hit this endpoint for the room
-    // claims the room. We confidently use the Service Client to bypass any RLS hurdles that
-    // were previously causing silent client-side `upsert` failures.
+    isHost = meetingRes.data.host_id === user?.id;
+  } else if (user) {
+    // If no meeting exists yet, an authenticated user claims it fallback.
     isHost = true;
     await adminSupa.from("meetings").insert({
       room_id: room,
       host_id: user.id,
       started_at: new Date().toISOString()
     });
+  } else {
+    // A guest entered a non-existent room URL. Default to guest.
+    isHost = false;
   }
 
   const at = new AccessToken(
     process.env.LIVEKIT_API_KEY!,
     process.env.LIVEKIT_API_SECRET!,
-    { identity, name }
+    { identity, name, metadata: JSON.stringify({ avatar_url: avatarUrl }) }
   );
 
   at.addGrant({

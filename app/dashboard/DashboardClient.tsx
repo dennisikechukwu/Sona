@@ -109,7 +109,8 @@ export default function DashboardClient({ user, profile, meetings }: Props) {
         {/* Nav */}
         <DashboardNav 
           displayName={displayName} 
-          initials={initials} 
+          initials={initials}
+          avatarUrl={profile?.avatar_url}
           signingOut={signingOut} 
           signOut={signOut} 
         />
